@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media Followers Dashboard - Tiktok</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"> <!-- Font Awesome for icons -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Add Chart.js for graphs -->
+</head>
+<body>
+
+    <!-- Navbar -->
+    <div class="navbar">
+        <a href="{{ url_for('home') }}">
+            <i class="fab fa-facebook-f"> </i>
+        </a>
+        <a href="{{ url_for('youtube') }}">
+            <i class="fab fa-youtube"></i>
+        </a>
+        <a href="{{ url_for('instagram') }}">
+            <i class="fab fa-instagram"></i>  <!-- Instagram icon -->
+        </a>
+        <a href="{{ url_for('twitter') }}">
+            <i class="fab fa-twitter"></i>  <!-- Twitter icon -->
+        </a>
+        <a href="{{ url_for('tiktok') }}">
+            <i class="fa-brands fa-tiktok"></i>  <!-- Tiktok icon -->
+        </a>
+        <a href="{{ url_for('combine') }}">Combined Report</a>
+    </div>
+    <!-- Popup Modal -->
+    <div id="updateModal" class="modal">
+        <div class="modal-content update">
+            <h3 class="update">Data Updated!</h3>
+            <p class="update">The TikTok followers data has been successfully updated.</p>
+            <button onclick="closeModal()" class="update">OK</button>
+        </div>
+    </div>
+
+    <!-- Main content area -->
+    <div class="main-content">
+        <h1>TikTok Followers Dashboard</h1>
+
+        <!-- Tiktok Followers Scraper Section -->
+        <div class="scraper-section">
+            <h2>TikTok Profile Followers</h2>
+            <button onclick="captureTiktokFollowers()">Fetch Followers</button>
+            <button id="toggleGraphBtn" onclick="toggleGraph()">Show Graph and Rankings</button>
+            <button onclick="showTikTokReport()">Show TikTok Report</button>
+
+            <!-- Popup Modal for TikTok Report -->
+        <!-- Popup Modal for TikTok Report -->
+        <div id="tiktokReportModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeTikTokModal()">&times;</span>
+                <h3 style="text-align: center;">TikTok Followers Change Report</h3>
+                <div id="tiktokReportContent" class="report-content">
+                    <!-- Report content will be dynamically injected here -->
+                </div>
+            </div>
+        </div>
+
+
+
+
+
+            <!-- Graph and Rankings -->
+            <div style="display:none;" id="graphAndRankingsContainer">
+                <!-- Graph container -->
+                <div style="max-width: 600px; margin: 20px auto;" id="graphContainer">
+                    <canvas id="followersChart"></canvas> <!-- Chart.js Graph for Tiktok Followers -->
+                </div>
+
+                <!-- Rankings list -->
+                <div id="sortedListContainer" style="margin-top: 20px;">
+                    <h3>Rankings (Highest to Lowest Followers)</h3>
+                    <ul id="followersRankingList" class="two-columns"></ul>
+                </div>
+            </div>
+
+            <div id="tiktok-results" class="results-grid"></div> <!-- Follower boxes below the graph -->
+        </div>
+    </div>
+
+    <script>
+        let tiktokData = [];
+        let graphVisible = false;
+        let tiktokChartInstance = null;
+
+        // Load stored Tiktok data from localStorage when the page loads
+        window.onload = function() {
+            const storedData = localStorage.getItem('tiktokData');
+            if (storedData) {
+                tiktokData = JSON.parse(storedData);
+                displayFollowers(tiktokData);  // Display cards sorted by followers
+                updateRankings(tiktokData);    // Display rankings as sorted
+                if (graphVisible) {
+                    updateGraph(tiktokData);   // Graph remains unsorted
+                }
+            }
+        };
+
+        // Fetch followers and display them
+        function captureTiktokFollowers() {
+            fetch('/capture_tiktok')
+                .then(response => response.json())
+                .then(data => {
+                    tiktokData = data;
+                    localStorage.setItem('tiktokData', JSON.stringify(tiktokData));
+                    displayFollowers(tiktokData);  // Sort and display cards
+                    if (graphVisible) {
+                        updateGraph(tiktokData);  // Graph unsorted
+                    }
+                    showModal();
+                })
+                .catch(error => {
+                    console.error('Error fetching followers:', error);
+                });
+        }
+
+        // Display fetched followers in sorted order (highest to lowest)
+        function displayFollowers(data) {
+            const resultsDiv = document.getElementById('tiktok-results');
+            resultsDiv.innerHTML = '';
+
+            // Sort the data by followers in descending order for display in cards
+            const sortedData = data.sort((a, b) => parseFollowers(b.followers) - parseFollowers(a.followers));
+
+            sortedData.forEach(profile => {
+                const profileDiv = document.createElement('div');
+                profileDiv.classList.add('page-result');
+
+                profileDiv.innerHTML = `
+                    <h3>${profile.profile_name}</h3>
+                    <p>Followers: ${profile.followers}</p>
+                    <a href="${profile.url}" target="_blank">Visit Tiktok Profile</a>
+                `;
+                resultsDiv.appendChild(profileDiv);
+            });
+        }
+
+        // Show or hide the graph and rankings
+        function toggleGraph() {
+            const graphAndRankingsContainer = document.getElementById('graphAndRankingsContainer');
+            const toggleButton = document.getElementById('toggleGraphBtn');
+            if (!graphVisible) {
+                graphAndRankingsContainer.style.display = 'block';
+                toggleButton.textContent = 'Hide Graph and Rankings';
+                updateGraph(tiktokData);  // Keep graph unsorted
+                updateRankings(tiktokData);  // Rankings sorted by followers
+                graphVisible = true;
+            } else {
+                graphAndRankingsContainer.style.display = 'none';
+                toggleButton.textContent = 'Show Graph and Rankings';
+                if (tiktokChartInstance) {
+                    tiktokChartInstance.destroy();
+                }
+                graphVisible = false;
+            }
+        }
+
+        // Update graph without sorting
+        function updateGraph(data) {
+            const profileNames = data.map(profile => profile.profile_name);
+            const followers = data.map(profile => {
+                let followerCount = profile.followers;
+
+                // Ensure proper conversion of 'K' and 'M'
+                if (followerCount.includes('M')) {
+                    followerCount = parseFloat(followerCount.replace('M', '')) * 1_000_000;
+                } else if (followerCount.includes('K')) {
+                    followerCount = parseFloat(followerCount.replace('K', '')) * 1_000;
+                } else {
+                    followerCount = parseFloat(followerCount);
+                }
+
+                return followerCount;
+            });
+
+            const ctx = document.getElementById('followersChart').getContext('2d');
+
+            // Destroy the previous chart instance if it exists
+            if (tiktokChartInstance) {
+                tiktokChartInstance.destroy();
+            }
+
+            // Create a new chart instance
+            // Create a new chart instance
+            tiktokChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: profileNames,
+                    datasets: [{
+                        label: 'Followers',
+                        data: followers,
+                        backgroundColor: 'rgba(174,2,35,0.6)',
+                        borderColor: 'rgb(94,0,0)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            type: 'logarithmic',  // Use logarithmic scale
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    if (value === 50000) return '50K';
+                                    if (value === 100000) return '100K';
+                                    if (value === 300000) return '300K';
+                                    if (value === 1000000) return '1M';
+                                    if (value === 5000000) return '5M';
+                                    if (value === 10000000) return '10M';
+                                    if (value === 20000000) return '20M';
+                                    if (value === 30000000) return '30M';
+                                    return null;
+                                },
+                                min: 50000,  // Start the scale from 50K
+                                max: 30000000,  // Cap at 30M
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update rankings list with the followers data (sorted by followers)
+        function updateRankings(data) {
+            const rankingList = document.getElementById('followersRankingList');
+            rankingList.innerHTML = '';
+
+            const sortedData = [...data].sort((a, b) => parseFollowers(b.followers) - parseFollowers(a.followers));
+
+            // Split data into two columns for the rankings display
+            const firstColumn = sortedData.slice(0, 10);
+            const secondColumn = sortedData.slice(10, 20);
+
+            for (let i = 0; i < firstColumn.length; i++) {
+                const firstItem = document.createElement('li');
+                firstItem.textContent = `${i + 1}. ${firstColumn[i].profile_name} - ${firstColumn[i].followers}`;
+                rankingList.appendChild(firstItem);
+
+                if (secondColumn[i]) {
+                    const secondItem = document.createElement('li');
+                    secondItem.textContent = `${i + 11}. ${secondColumn[i].profile_name} - ${secondColumn[i].followers}`;
+                    rankingList.appendChild(secondItem);
+                }
+            }
+        }
+
+        // Helper function to parse followers count for comparison
+        function parseFollowers(followers) {
+            if (followers.includes('M')) {
+                return parseFloat(followers.replace('M', '')) * 1_000_000;
+            } else if (followers.includes('K')) {
+                return parseFloat(followers.replace('K', '')) * 1_000;
+            } else {
+                // Remove commas from numbers and parse them as raw numbers
+                let followerCount = parseFloat(followers.replace(/,/g, ''));
+                return followerCount;
+            }
+        }
+
+
+        // Function to open the TikTok report modal
+        function showTikTokReport() {
+            // Fetch the TikTok report data from the Flask route
+            fetch('/generate_tiktok_report')
+                .then(response => response.json())
+                .then(reportData => {
+                    // Handle the response and display the report in the modal
+                    const reportContentDiv = document.getElementById('tiktokReportContent');
+                    reportContentDiv.innerHTML = ''; // Clear previous content
+
+                    if (reportData.length === 0) {
+                        reportContentDiv.innerHTML = '<p>No change in followers.</p>';
+                    } else {
+                        const ul = document.createElement('ul');
+                        reportData.forEach(profile => {
+                            const li = document.createElement('li');
+                            // Use 'profile_name' instead of 'page_name'
+                            li.innerHTML = `<strong>${profile.profile_name}</strong>: Old Followers: ${profile.old_followers}, New Followers: ${profile.new_followers}, Change: ${profile.gain_or_loss}`;
+                            ul.appendChild(li);
+                        });
+                        reportContentDiv.appendChild(ul);
+                    }
+
+                    // Show the modal
+                    const modal = document.getElementById('tiktokReportModal');
+                    modal.style.display = 'flex';
+                })
+                .catch(error => {
+                    console.error('Error fetching TikTok report:', error);
+                });
+        }
+
+
+
+    // Function to close the TikTok report modal
+    function closeTikTokModal() {
+        const modal = document.getElementById('tiktokReportModal');
+        modal.style.display = 'none';
+    }
+
+    // Close the modal when clicking outside of it
+    window.onclick = function(event) {
+        const modal = document.getElementById('tiktokReportModal');
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+        // Show the modal
+        function showModal() {
+            const modal = document.getElementById('updateModal');
+            modal.style.display = 'block';
+        }
+
+        // Close the modal manually
+        function closeModal() {
+            const modal = document.getElementById('updateModal');
+            modal.style.display = 'none';
+        }
+    </script>
+
+</body>
+</html>

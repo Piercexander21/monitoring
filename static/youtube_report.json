@@ -1,0 +1,116 @@
+[
+    {
+        "channel_name": "Wilbert Lee",
+        "old_subscribers": 230000.0,
+        "new_subscribers": 230000.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Chel Diokno",
+        "old_subscribers": 333000.0,
+        "new_subscribers": 335000.0,
+        "gain_or_loss": "+2000"
+    },
+    {
+        "channel_name": "Robin Padilla",
+        "old_subscribers": 49600.0,
+        "new_subscribers": 49600.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Loren Legarda",
+        "old_subscribers": 17800.0,
+        "new_subscribers": 17800.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Raffy Tulfo",
+        "old_subscribers": 28400000.0,
+        "new_subscribers": 28500000.0,
+        "gain_or_loss": "+100000"
+    },
+    {
+        "channel_name": "Chiz Escudero",
+        "old_subscribers": 903.0,
+        "new_subscribers": 907.0,
+        "gain_or_loss": "+4"
+    },
+    {
+        "channel_name": "Mark Villar",
+        "old_subscribers": 84500.0,
+        "new_subscribers": 84500.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Alan Peter Cayetano",
+        "old_subscribers": 1500.0,
+        "new_subscribers": 1510.0,
+        "gain_or_loss": "+10"
+    },
+    {
+        "channel_name": "Migz Zubiri",
+        "old_subscribers": 1480.0,
+        "new_subscribers": 1490.0,
+        "gain_or_loss": "+10"
+    },
+    {
+        "channel_name": "Joel Villanueva",
+        "old_subscribers": 11600.0,
+        "new_subscribers": 11600.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Jinggoy Estrada",
+        "old_subscribers": 88200.0,
+        "new_subscribers": 88200.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Bong Revilla",
+        "old_subscribers": 530000.0,
+        "new_subscribers": 533000.0,
+        "gain_or_loss": "+3000"
+    },
+    {
+        "channel_name": "Herbert Bautista",
+        "old_subscribers": 1050.0,
+        "new_subscribers": 1050.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Gilbert Teodoro",
+        "old_subscribers": 955.0,
+        "new_subscribers": 957.0,
+        "gain_or_loss": "+2"
+    },
+    {
+        "channel_name": "Harry Roque",
+        "old_subscribers": 99400.0,
+        "new_subscribers": 99400.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Gringo Honasan",
+        "old_subscribers": 159.0,
+        "new_subscribers": 160.0,
+        "gain_or_loss": "+1"
+    },
+    {
+        "channel_name": "Larry Gadon",
+        "old_subscribers": 33500.0,
+        "new_subscribers": 33500.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Bong Go",
+        "old_subscribers": 59500.0,
+        "new_subscribers": 59500.0,
+        "gain_or_loss": "0"
+    },
+    {
+        "channel_name": "Kiko Pangilinan",
+        "old_subscribers": 155000.0,
+        "new_subscribers": 155000.0,
+        "gain_or_loss": "0"
+    }
+]

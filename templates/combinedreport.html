@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Combined Social Media Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <!-- Navbar (same style as other pages) -->
+     <!-- Navbar -->
+    <div class="navbar">
+        <a href="{{ url_for('home') }}">
+            <i class="fab fa-facebook-f"> </i>
+        </a>
+        <a href="{{ url_for('youtube') }}">
+            <i class="fab fa-youtube"></i>
+        </a>
+        <a href="{{ url_for('instagram') }}">
+            <i class="fab fa-instagram"></i>  <!-- Instagram icon -->
+        </a>
+        <a href="{{ url_for('twitter') }}">
+            <i class="fab fa-twitter"></i>  <!-- Twitter icon -->
+        </a>
+        <a href="{{ url_for('tiktok') }}">
+            <i class="fa-brands fa-tiktok"></i>  <!-- Tiktok icon -->
+        </a>
+        <a href="{{ url_for('combine') }}">Combined Report</a>
+    </div>
+
+    <!-- Page Title -->
+    <h1 class="page-titlee">Combined Social Media Followers Report</h1>
+
+    <!-- Button to generate the report -->
+    <div class="button-container">
+        <button onclick="generateCombinedReport()">Generate Combined Report</button>
+    </div>
+
+    <!-- Report container for graphs -->
+    <div id="combinedReportContainer" class="report-container"></div>
+
+    <script>
+        function generateCombinedReport() {
+            fetch('/generate_combined_report')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('combinedReportContainer');
+                    container.innerHTML = '';  // Clear previous content
+
+                    data.forEach(candidate => {
+                        // Create a graph container for each candidate
+                        const candidateContainer = document.createElement('div');
+                        candidateContainer.className = 'candidate-container';
+
+                        // Create a heading for the candidate name
+                        const heading = document.createElement('h2');
+                        heading.textContent = candidate.name;
+                        candidateContainer.appendChild(heading);
+
+                        // Create a list to display gain/loss for each platform
+                        const changesList = document.createElement('ul');
+                        changesList.className = 'changes-list';
+
+                        // Create a canvas for the graph
+                        const canvas = document.createElement('canvas');
+                        canvas.id = 'chart-' + candidate.name.replace(/\s+/g, '-');
+                        candidateContainer.appendChild(canvas);
+
+                        container.appendChild(candidateContainer);
+
+                        const ctx = canvas.getContext('2d');
+
+                        // Gather the data for the graph and changes list (ignore platforms with no data)
+                        const labels = [];
+                        const dataPoints = [];
+                        const backgroundColors = [];
+
+                        if (candidate.facebook_followers) {
+                            labels.push('Facebook');
+                            dataPoints.push(candidate.facebook_followers);
+                            backgroundColors.push('rgba(59, 89, 152, 0.6)'); // Facebook color
+                            changesList.innerHTML += `<li>Facebook change: ${candidate.facebook_change}</li>`;
+                        }
+                        if (candidate.instagram_followers) {
+                            labels.push('Instagram');
+                            dataPoints.push(candidate.instagram_followers);
+                            backgroundColors.push('rgba(225, 48, 108, 0.6)'); // Instagram color
+                            changesList.innerHTML += `<li>Instagram change: ${candidate.instagram_change}</li>`;
+                        }
+                        if (candidate.twitter_followers) {
+                            labels.push('Twitter');
+                            dataPoints.push(candidate.twitter_followers);
+                            backgroundColors.push('rgba(29, 161, 242, 0.6)'); // Twitter color
+                            changesList.innerHTML += `<li>Twitter change: ${candidate.twitter_change}</li>`;
+                        }
+                        if (candidate.tiktok_followers) {
+                            labels.push('TikTok');
+                            dataPoints.push(candidate.tiktok_followers);
+                            backgroundColors.push('rgba(0, 0, 0, 0.6)'); // TikTok color
+                            changesList.innerHTML += `<li>TikTok change: ${candidate.tiktok_change}</li>`;
+                        }
+                        if (candidate.youtube_subscribers) {
+                            labels.push('YouTube');
+                            dataPoints.push(candidate.youtube_subscribers);
+                            backgroundColors.push('rgba(255, 0, 0, 0.6)'); // YouTube color
+                            changesList.innerHTML += `<li>YouTube change: ${candidate.youtube_change}</li>`;
+                        }
+
+                        candidateContainer.appendChild(changesList); // Append the change report
+
+                        // Create the graph
+                        new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: 'Followers/Subscribers',
+                                    data: dataPoints,
+                                    backgroundColor: backgroundColors,
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true
+                                    }
+                                }
+                            }
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.error('Error generating combined report:', error);
+                });
+        }
+    </script>
+</body>
+</html>

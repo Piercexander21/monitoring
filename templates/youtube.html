@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media Followers Dashboard - YouTube</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"> <!-- Font Awesome for icons -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Add Chart.js for graphs -->
+</head>
+<body>
+
+    <!-- Navbar -->
+    <div class="navbar">
+        <a href="{{ url_for('home') }}">
+            <i class="fab fa-facebook-f"> </i>
+        </a>
+        <a href="{{ url_for('youtube') }}">
+            <i class="fab fa-youtube"></i>
+        </a>
+        <a href="{{ url_for('instagram') }}">
+            <i class="fab fa-instagram"></i>  <!-- Instagram icon -->
+        </a>
+        <a href="{{ url_for('twitter') }}">
+            <i class="fab fa-twitter"></i>  <!-- Twitter icon -->
+        </a>
+        <a href="{{ url_for('tiktok') }}">
+            <i class="fa-brands fa-tiktok"></i>  <!-- Tiktok icon -->
+        </a>
+        <a href="{{ url_for('combine') }}">Combined Report</a>
+    </div>
+
+    <!-- Popup Modal for YouTube Report -->
+    <div id="youtubeReportModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeYouTubeModal()">&times;</span>
+            <h3 class="titlee">YouTube Followers Change Report</h3>
+            <div id="youtubeReportContent">
+                <!-- Report content will be dynamically injected here -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Popup Modal -->
+    <div id="updateModal" class="modal">
+        <div class="modal-content">
+            <h3 class="update">Data Updated!</h3>
+            <p class="update">The YouTube subscriber data has been successfully updated.</p>
+            <button onclick="closeModal()">OK</button>
+        </div>
+    </div>
+
+    <!-- Main content area -->
+    <div class="main-content">
+        <h1>YouTube Subscriber Dashboard</h1>
+
+        <!-- YouTube Subscribers Scraper Section -->
+        <div class="scraper-section">
+            <h2>YouTube Channel Subscribers</h2>
+            <button onclick="captureSubscribers()">Fetch Subscribers</button>
+            <button id="toggleGraphBtn" onclick="toggleGraph()">Show Graph and Rankings</button>
+            <button onclick="showYouTubeReport()">Show YouTube Report</button>
+
+            <!-- Graph and Rankings -->
+            <div style="display:none;" id="graphAndRankingsContainer">
+                <!-- Graph container -->
+                <div style="max-width: 600px; margin: 20px auto;" id="graphContainer">
+                    <canvas id="subscribersChart"></canvas> <!-- Chart.js Graph for YouTube Subscribers -->
+                </div>
+
+                <!-- Rankings list -->
+                <div id="sortedListContainer" style="margin-top: 20px;">
+                    <h3>Rankings (Highest to Lowest Subscribers)</h3>
+                    <ul id="subscribersRankingList" class="two-columns"></ul>
+                </div>
+            </div>
+
+            <div id="youtube-results" class="results-grid"></div> <!-- Subscriber boxes below the graph -->
+        </div>
+    </div>
+
+    <script>
+        let youtubeData = [];
+        let graphVisible = false;
+        let youtubeChartInstance = null;
+
+        // Load stored YouTube data from localStorage when the page loads
+        window.onload = function() {
+            const storedData = localStorage.getItem('youtubeData');
+            if (storedData) {
+                youtubeData = JSON.parse(storedData);
+                displaySubscribers(youtubeData);  // Sorted cards
+                if (graphVisible) {
+                    updateGraph(youtubeData);  // Unsorted graph
+                }
+            }
+        };
+
+        // Fetch subscribers and display them
+        function captureSubscribers() {
+            fetch('/youtube_capture')
+                .then(response => response.json())
+                .then(data => {
+                    const resultsDiv = document.getElementById('youtube-results');
+                    resultsDiv.innerHTML = '';
+                    youtubeData = data;
+                    localStorage.setItem('youtubeData', JSON.stringify(youtubeData));
+                    displaySubscribers(youtubeData);  // Sorted cards
+                    if (graphVisible) {
+                        updateGraph(youtubeData);  // Unsorted graph
+                    }
+                    showModal();
+                })
+                .catch(error => {
+                    console.error('Error fetching subscribers:', error);
+                });
+        }
+
+        // Display fetched subscribers in the UI, sorted by subscribers (highest to lowest)
+        function displaySubscribers(data) {
+            const resultsDiv = document.getElementById('youtube-results');
+            resultsDiv.innerHTML = '';
+
+            // Sort the data by subscribers in descending order
+            const sortedData = [...data].sort((a, b) => parseSubscribers(b.subscribers) - parseSubscribers(a.subscribers));
+
+            // Display sorted cards
+            sortedData.forEach(channel => {
+                const channelDiv = document.createElement('div');
+                channelDiv.classList.add('page-result');
+
+                channelDiv.innerHTML = `
+                    <h3>${channel.channel_name}</h3>
+                    <p>Subscribers: ${channel.subscribers}</p>
+                    <a href="${channel.url}" target="_blank">Visit YouTube Channel</a>
+                `;
+                resultsDiv.appendChild(channelDiv);
+            });
+        }
+
+        // Show or hide the graph (graph remains unsorted)
+        function toggleGraph() {
+            const graphAndRankingsContainer = document.getElementById('graphAndRankingsContainer');
+            const toggleButton = document.getElementById('toggleGraphBtn');
+            if (!graphVisible) {
+                graphAndRankingsContainer.style.display = 'block';
+                toggleButton.textContent = 'Hide Graph and Rankings';
+                updateGraph(youtubeData);  // Unsorted graph
+                updateRankings(youtubeData);  // Sorted rankings
+                graphVisible = true;
+            } else {
+                graphAndRankingsContainer.style.display = 'none';
+                toggleButton.textContent = 'Show Graph and Rankings';
+                if (youtubeChartInstance) {
+                    youtubeChartInstance.destroy();
+                }
+                graphVisible = false;
+            }
+        }
+
+        // Update graph with the subscribers data (unsorted)
+        function updateGraph(data) {
+            const channelNames = data.map(channel => channel.channel_name);
+            const subscribers = data.map(channel => parseSubscribers(channel.subscribers));
+
+            const ctx = document.getElementById('subscribersChart').getContext('2d');
+
+            // Destroy the previous chart instance if it exists
+            if (youtubeChartInstance) {
+                youtubeChartInstance.destroy();
+            }
+
+
+            // Create a new chart instance
+            youtubeChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: channelNames,
+                    datasets: [{
+                        label: 'Subscribers',
+                        data: subscribers,
+                        backgroundColor: 'rgba(255,1,1,0.6)',
+                        borderColor: 'rgb(225,28,28)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            type: 'logarithmic',  // Use logarithmic scale
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    if (value === 50000) return '50K';
+                                    if (value === 100000) return '100K';
+                                    if (value === 300000) return '300K';
+                                    if (value === 1000000) return '1M';
+                                    if (value === 5000000) return '5M';
+                                    if (value === 10000000) return '10M';
+                                    if (value === 20000000) return '20M';
+                                    if (value === 30000000) return '30M';
+                                    return null;
+                                },
+                                min: 50000,  // Start the scale from 50K
+                                max: 30000000,  // Cap at 30M
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update rankings list with the subscribers data, sorted by subscribers
+        // Update rankings list with the subscribers data, sorted by subscribers
+        function updateRankings(data) {
+            const rankingList = document.getElementById('subscribersRankingList');
+            rankingList.innerHTML = '';
+
+            const sortedData = [...data].sort((a, b) => parseSubscribers(b.subscribers) - parseSubscribers(a.subscribers));
+
+            // Split data into two columns: first column (1-10), second column (11-20)
+            const firstColumn = sortedData.slice(0, 10);  // First 10 rankings
+            const secondColumn = sortedData.slice(10, 20); // Next 10 rankings
+
+            // Render first column (1 to 10)
+            for (let i = 0; i < firstColumn.length; i++) {
+                const listItem = document.createElement('li');
+                listItem.textContent = `${i + 1}. ${firstColumn[i].channel_name} - ${firstColumn[i].subscribers}`;
+                rankingList.appendChild(listItem);
+
+                // Render second column (11 to 20) side-by-side
+                const secondListItem = document.createElement('li');
+                if (secondColumn[i]) { // Make sure we don't go out of bounds
+                    secondListItem.textContent = `${i + 11}. ${secondColumn[i].channel_name} - ${secondColumn[i].subscribers}`;
+                    rankingList.appendChild(secondListItem);
+                }
+            }
+        }
+
+
+        // Helper function to parse subscribers count for comparison
+        function parseSubscribers(subscribers) {
+            if (subscribers.includes('M')) {
+                return parseFloat(subscribers.replace('M', '')) * 1_000_000;
+            } else if (subscribers.includes('K')) {
+                return parseFloat(subscribers.replace('K', '')) * 1_000;
+            } else {
+                return parseFloat(subscribers);
+            }
+        }
+
+         // Fetch and display YouTube report
+        function showYouTubeReport() {
+            fetch('/generate_youtube_report')
+                .then(response => response.json())
+                .then(reportData => {
+                    const reportContentDiv = document.getElementById('youtubeReportContent');
+                    reportContentDiv.innerHTML = ''; // Clear previous content
+
+                    if (reportData.length === 0) {
+                        reportContentDiv.innerHTML = '<p>No change in followers.</p>';
+                    } else {
+                        const ul = document.createElement('ul');
+                        reportData.forEach(profile => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `<strong>${profile.channel_name}</strong>: Old Subscribers: ${profile.old_subscribers}, New Subscribers: ${profile.new_subscribers}, Change: ${profile.gain_or_loss}`;
+                            ul.appendChild(li);
+                        });
+                        reportContentDiv.appendChild(ul);
+                    }
+
+                    // Show the modal
+                    const modal = document.getElementById('youtubeReportModal');
+                    modal.style.display = 'flex';
+                })
+                .catch(error => {
+                    console.error('Error fetching YouTube report:', error);
+                });
+        }
+
+        // Close the YouTube report modal
+        function closeYouTubeModal() {
+            const modal = document.getElementById('youtubeReportModal');
+            modal.style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('youtubeReportModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+
+        // Show the modal
+        function showModal() {
+            const modal = document.getElementById('updateModal');
+            modal.style.display = 'block';
+        }
+
+        // Close the modal manually
+        function closeModal() {
+            const modal = document.getElementById('updateModal');
+            modal.style.display = 'none';
+        }
+    </script>
+
+</body>
+</html>

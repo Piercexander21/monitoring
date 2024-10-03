@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media Followers Dashboard - Instagram</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"> <!-- Font Awesome for icons -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Add Chart.js for graphs -->
+</head>
+<body>
+
+    <!-- Navbar -->
+    <div class="navbar">
+        <a href="{{ url_for('home') }}">
+            <i class="fab fa-facebook-f"> </i>
+        </a>
+        <a href="{{ url_for('youtube') }}">
+            <i class="fab fa-youtube"></i>
+        </a>
+        <a href="{{ url_for('instagram') }}">
+            <i class="fab fa-instagram"></i>  <!-- Instagram icon -->
+        </a>
+        <a href="{{ url_for('twitter') }}">
+            <i class="fab fa-twitter"></i>  <!-- Twitter icon -->
+        </a>
+        <a href="{{ url_for('tiktok') }}">
+            <i class="fa-brands fa-tiktok"></i>  <!-- Tiktok icon -->
+        </a>
+        <a href="{{ url_for('combine') }}">Combined Report</a>
+    </div>
+
+    <!-- Popup Modal -->
+    <div id="updateModal" class="modal">
+        <div class="modal-content">
+            <h3 class="update">Data Updated!</h3>
+            <p class="update">The Instagram followers data has been successfully updated.</p>
+            <button onclick="closeModal()">OK</button>
+        </div>
+    </div>
+
+    <!-- Popup Modal for Instagram Report -->
+    <div id="instagramReportModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeInstagramModal()">&times;</span>
+            <h3 class="titlee">Instagram Followers Change Report</h3>
+            <div id="instagramReportContent">
+                <!-- Report content will be dynamically injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content area -->
+    <div class="main-content">
+        <h1>Instagram Follower Dashboard</h1>
+
+        <!-- Instagram Followers Scraper Section -->
+        <div class="scraper-section">
+            <h2>Instagram Profile Followers</h2>
+            <button onclick="captureInstagramFollowers()">Fetch Followers</button>
+            <button id="toggleGraphBtn" onclick="toggleGraph()">Show Graph and Rankings</button>
+            <button onclick="showInstagramReport()">Show Instagram Report</button>
+
+            <!-- Graph and Rankings -->
+            <div style="display:none;" id="graphAndRankingsContainer">
+                <!-- Graph container -->
+                <div style="max-width: 600px; margin: 20px auto;" id="graphContainer">
+                    <canvas id="followersChart"></canvas> <!-- Chart.js Graph for Instagram Followers -->
+                </div>
+
+                <!-- Rankings list -->
+                <div id="sortedListContainer" style="margin-top: 20px;">
+                    <h3>Rankings (Highest to Lowest Followers)</h3>
+                    <ul id="followersRankingList" class="two-columns"></ul>
+                </div>
+            </div>
+
+            <div id="instagram-results" class="results-grid"></div> <!-- Follower boxes below the graph -->
+        </div>
+    </div>
+
+    <script>
+        let instagramData = [];
+        let graphVisible = false;
+        let instagramChartInstance = null;
+
+        // Load stored Instagram data from localStorage when the page loads
+        window.onload = function() {
+            const storedData = localStorage.getItem('instagramData');
+            if (storedData) {
+                instagramData = JSON.parse(storedData);
+                displayFollowers(instagramData);  // Display cards sorted by followers
+                updateRankings(instagramData);    // Display rankings as sorted
+                if (graphVisible) {
+                    updateGraph(instagramData);   // Graph remains unsorted
+                }
+            }
+        };
+
+        // Fetch followers and display them
+        function captureInstagramFollowers() {
+            fetch('/capture_instagram')
+                .then(response => response.json())
+                .then(data => {
+                    instagramData = data;
+                    localStorage.setItem('instagramData', JSON.stringify(instagramData));
+                    displayFollowers(instagramData);  // Sort and display cards
+                    if (graphVisible) {
+                        updateGraph(instagramData);  // Graph unsorted
+                    }
+                    showModal();
+                })
+                .catch(error => {
+                    console.error('Error fetching followers:', error);
+                });
+        }
+
+        // Display fetched followers in sorted order (highest to lowest)
+        function displayFollowers(data) {
+            const resultsDiv = document.getElementById('instagram-results');
+            resultsDiv.innerHTML = '';
+
+            // Sort the data by followers in descending order for display in cards
+            const sortedData = data.sort((a, b) => parseFollowers(b.followers) - parseFollowers(a.followers));
+
+            sortedData.forEach(profile => {
+                const profileDiv = document.createElement('div');
+                profileDiv.classList.add('page-result');
+
+                // Display followers as full number (e.g., 4,884 instead of rounding to K)
+                profileDiv.innerHTML = `
+                    <h3>${profile.profile_name}</h3>
+                    <p>Followers: ${profile.followers}</p>
+                    <a href="${profile.url}" target="_blank">Visit Instagram Profile</a>
+                `;
+                resultsDiv.appendChild(profileDiv);
+            });
+        }
+
+        // Show or hide the graph
+        function toggleGraph() {
+            const graphAndRankingsContainer = document.getElementById('graphAndRankingsContainer');
+            const toggleButton = document.getElementById('toggleGraphBtn');
+            if (!graphVisible) {
+                graphAndRankingsContainer.style.display = 'block';
+                toggleButton.textContent = 'Hide Graph and Rankings';
+                updateGraph(instagramData);  // Keep graph unsorted
+                updateRankings(instagramData);  // Rankings sorted by followers
+                graphVisible = true;
+            } else {
+                graphAndRankingsContainer.style.display = 'none';
+                toggleButton.textContent = 'Show Graph and Rankings';
+                if (instagramChartInstance) {
+                    instagramChartInstance.destroy();
+                }
+                graphVisible = false;
+            }
+        }
+
+        // Update graph without sorting
+        function updateGraph(data) {
+            const profileNames = data.map(profile => profile.profile_name);
+            const followers = data.map(profile => {
+                let followerCount = profile.followers;
+
+                // Ensure proper conversion of 'K' and 'M'
+                if (followerCount.includes('M')) {
+                    followerCount = parseFloat(followerCount.replace('M', '')) * 1_000_000;
+                } else if (followerCount.includes('K')) {
+                    followerCount = parseFloat(followerCount.replace('K', '')) * 1_000;
+                } else {
+                    followerCount = parseFloat(followerCount.replace(/,/g, '')); // No rounding for full numbers
+                }
+
+                return followerCount;
+            });
+
+            const ctx = document.getElementById('followersChart').getContext('2d');
+
+            // Destroy the previous chart instance if it exists
+            if (instagramChartInstance) {
+                instagramChartInstance.destroy();
+            }
+
+            // Create a new chart instance
+            instagramChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: profileNames,
+                    datasets: [{
+                        label: 'Followers',
+                        data: followers,
+                        backgroundColor: 'rgba(251,47,237,0.85)',
+                        borderColor: 'rgba(181,29,163,0.68)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update rankings list with the followers data (sorted by followers)
+        function updateRankings(data) {
+            const rankingList = document.getElementById('followersRankingList');
+            rankingList.innerHTML = '';
+
+            const sortedData = data.sort((a, b) => parseFollowers(b.followers) - parseFollowers(a.followers));
+
+            // Display 10 items in each column
+            const firstColumn = sortedData.slice(0, 10);
+            const secondColumn = sortedData.slice(10, 20);
+
+            for (let i = 0; i < firstColumn.length; i++) {
+                const firstItem = document.createElement('li');
+                firstItem.textContent = `${i + 1}. ${firstColumn[i].profile_name} - ${firstColumn[i].followers}`;
+                rankingList.appendChild(firstItem);
+
+                const secondItem = document.createElement('li');
+                secondItem.textContent = `${i + 11}. ${secondColumn[i].profile_name} - ${secondColumn[i].followers}`;
+                rankingList.appendChild(secondItem);
+            }
+        }
+
+        // Helper function to parse and format followers count
+        function parseFollowers(followers) {
+            if (followers.includes('M')) {
+                return parseFloat(followers.replace('M', '')) * 1_000_000;
+            } else if (followers.includes('K')) {
+                return parseFloat(followers.replace('K', '')) * 1_000;
+            } else {
+                // Remove commas from numbers and parse them as raw numbers
+                let followerCount = parseFloat(followers.replace(/,/g, ''));
+                return followerCount;
+            }
+        }
+
+        // Function to open the Instagram report modal
+        function showInstagramReport() {
+            // Fetch the Instagram report data from the Flask route
+            fetch('/generate_instagram_report')
+                .then(response => response.json())
+                .then(reportData => {
+                    // Handle the response and display the report in the modal
+                    const reportContentDiv = document.getElementById('instagramReportContent');
+                    reportContentDiv.innerHTML = ''; // Clear previous content
+
+                    if (reportData.length === 0) {
+                        reportContentDiv.innerHTML = '<p>No change in followers.</p>';
+                    } else {
+                        const ul = document.createElement('ul');
+                        reportData.forEach(profile => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `<strong>${profile.profile_name}</strong>: Old Followers: ${profile.old_followers}, New Followers: ${profile.new_followers}, Change: ${profile.gain_or_loss}`;
+                            ul.appendChild(li);
+                        });
+                        reportContentDiv.appendChild(ul);
+                    }
+
+                    // Show the modal
+                    const modal = document.getElementById('instagramReportModal');
+                    modal.style.display = 'flex';
+                })
+                .catch(error => {
+                    console.error('Error fetching Instagram report:', error);
+                });
+        }
+
+        // Function to close the Instagram report modal
+        function closeInstagramModal() {
+            const modal = document.getElementById('instagramReportModal');
+            modal.style.display = 'none';
+        }
+
+        // Close the modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('instagramReportModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+
+
+        // Show the modal
+        function showModal() {
+            const modal = document.getElementById('updateModal');
+            modal.style.display = 'block';
+        }
+
+        // Close the modal manually
+        function closeModal() {
+            const modal = document.getElementById('updateModal');
+            modal.style.display = 'none';
+        }
+    </script>
+
+</body>
+</html>
